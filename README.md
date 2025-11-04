@@ -31,7 +31,7 @@ wealth-of-nations/
 
 ---
 
-## ⚙️ Installation
+## Installation
 Clone the repository and install dependencies:
 
 ```bash
