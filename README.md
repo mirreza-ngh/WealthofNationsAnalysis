@@ -10,8 +10,3 @@ We analyze the relationships between:
 - Under-5 child mortality
 
 The goal is to reveal trends and correlations that explain how nations thrive.
-
----
-
-## 📦 Project Structure
-
