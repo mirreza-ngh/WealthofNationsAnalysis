@@ -12,17 +12,4 @@ We analyze the relationships between:
 The goal is to reveal trends and correlations that explain how nations thrive.
 
 ## Project Structure
-wealth-of-nations/
-├── README.md # Project overview
-├── requirements.txt # Dependencies
-├── .gitignore # Ignored files (Python)
-├── won/ # Source package
-│ ├── init.py
-│ ├── config.py # Indicator codes and constants
-│ ├── data.py # Fetches World Bank data
-│ ├── transform.py # Cleans and merges data
-│ └── viz.py # Generates plots
-├── presentation/
-│ └── wealth_of_nations.ipynb # Jupyter notebook for analysis
-└── tests/
-└── test_data.py # Basic automated tests
+
