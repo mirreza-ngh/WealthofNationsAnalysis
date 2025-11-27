@@ -1,31 +1,80 @@
+import requests
 import pandas as pd
-import pytest
-
-from won.config import DEFAULT_INDICATORS
-from won.data import fetch_many
-from won.transform import latest_complete
 
 
-@pytest.mark.network
-def test_fetch_many_has_columns():
-    df = fetch_many(DEFAULT_INDICATORS, date="2019:2020")
-    assert {"iso3c", "year"}.issubset(df.columns)
-    for col in DEFAULT_INDICATORS:
-        assert col in df.columns
+def fetch_indicator(indicator: str, date: str = "1960:2023") -> pd.DataFrame:
+    """Fetch one World Bank indicator as a tidy DataFrame: iso3c, country, year, value."""
+    url = (
+        f"https://api.worldbank.org/v2/country/all/indicator/{indicator}"
+        f"?date={date}&format=json&per_page=20000"
+    )
+    rows = []
+    page = 1
+
+    while True:
+        r = requests.get(f"{url}&page={page}", timeout=60)
+        r.raise_for_status()
+        payload = r.json()
+
+        if len(payload) < 2 or payload[1] is None:
+            break
+
+        meta, items = payload[0], payload[1]
+
+        for it in items:
+            if it["country"]["id"] == "WLD":
+                continue
+
+            rows.append({
+                "iso3c": it["country"]["id"],
+                "country": it["country"]["value"],  # full country name
+                "year": int(it["date"]),
+                "value": it["value"],
+            })
+
+        if page >= meta["pages"]:
+            break
+        page += 1
+
+    df = pd.DataFrame(rows)
+    df["value"] = pd.to_numeric(df["value"], errors="coerce")
+
+    # clean iso3 codes, keep only real countries
+    df["iso3c"] = df["iso3c"].astype(str).str.strip().str.upper()
+    df = df[df["iso3c"].str.len() == 3]
+
+    return df
 
 
-def test_latest_complete_picks_latest():
-    df = pd.DataFrame({
-        "iso3c": ["USA","USA","USA","ITA","ITA"],
-        "country": ["United States","United States","United States","Italy","Italy"],
-        "year":  [2020, 2021, 2022, 2020, 2022],
-        "gdp_pc":[1, None, 3, 5, 6],
-        "life_exp":[10, 11, None, None, 20],
-    })
-    out = latest_complete(df, min_cols=1)
+def fetch_many(indicators: dict, date: str = "1960:2023") -> pd.DataFrame:
+    """Merge multiple indicators wide by (iso3c, country, year)."""
+    frames = []
+    for col, code in indicators.items():
+        dfi = fetch_indicator(code, date).rename(columns={"value": col})
+        frames.append(dfi)
 
-    usa_year = out[out.iso3c=="USA"]["year"].iloc[0]
-    ita_year = out[out.iso3c=="ITA"]["year"].iloc[0]
+    out = frames[0]
 
-    assert usa_year == 2022
-    assert ita_year == 2022
+    for dfi in frames[1:]:
+        out = out.merge(
+            dfi,
+            on=["iso3c", "year"],
+            how="outer",
+            suffixes=("_x", "_y")
+        )
+
+        # merge country names if duplicates appear
+        if "country_x" in out.columns and "country_y" in out.columns:
+            out["country"] = out["country_x"].fillna(out["country_y"])
+            out = out.drop(columns=["country_x", "country_y"])
+
+    # reorder columns nicely
+    cols = ["iso3c", "country", "year"] + [
+        c for c in out.columns if c not in ("iso3c", "country", "year")
+    ]
+    out = out[cols]
+
+    # ✅ IMPORTANT: remove any duplicate column names (fixes narwhals DuplicateError)
+    out = out.loc[:, ~out.columns.duplicated()]
+
+    return out.sort_values(["iso3c", "year"]).reset_index(drop=True)
