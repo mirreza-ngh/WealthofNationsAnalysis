@@ -74,7 +74,6 @@ def fetch_many(indicators: dict, date: str = "1960:2023") -> pd.DataFrame:
     ]
     out = out[cols]
 
-    # ✅ IMPORTANT: remove any duplicate column names (fixes narwhals DuplicateError)
     out = out.loc[:, ~out.columns.duplicated()]
 
     return out.sort_values(["iso3c", "year"]).reset_index(drop=True)
