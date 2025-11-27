@@ -11,3 +11,4 @@ We analyze the relationships between:
 
 The goal is to reveal trends and correlations that explain how nations thrive.
 
+https://wealthofnationsanalysis-jrkb9wkvqhqwnbfprsoifb.streamlit.app/
