@@ -3,3 +3,4 @@ requests
 matplotlib
 plotly
 streamlit
+statsmodels
