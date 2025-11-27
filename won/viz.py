@@ -21,13 +21,12 @@ def scatter_rel(
     df: pd.DataFrame,
     x: str,
     y: str,
-    hover: str = "iso3c",
+    hover: str = "country",
     title: str = ""
 ):
     """
     Plotly scatter with OLS trendline (requires statsmodels installed).
     """
-    # Ensure numeric for trendline + axes
     d = df.copy()
     d[x] = pd.to_numeric(d[x], errors="coerce")
     d[y] = pd.to_numeric(d[y], errors="coerce")
@@ -37,7 +36,7 @@ def scatter_rel(
         d,
         x=x,
         y=y,
-        hover_name=hover,
+        hover_name=hover if hover in d.columns else "iso3c",
         trendline="ols",
         title=title or f"{y} vs {x}"
     )
@@ -51,11 +50,10 @@ def choropleth_latest(
     """
     Plotly choropleth for latest values.
     Cleans iso3 codes + drops missing values so the map is never fully blank
-    unless there is truly no data.
+    unless there is truly no data for that indicator.
     """
     d = df_latest.copy()
 
-    # --- Clean and validate iso3 codes ---
     d["iso3c"] = (
         d["iso3c"]
         .astype(str)
@@ -64,11 +62,9 @@ def choropleth_latest(
     )
     d = d[d["iso3c"].str.len() == 3]
 
-    # --- Ensure numeric + drop missing for the mapped column ---
     d[value_col] = pd.to_numeric(d[value_col], errors="coerce")
     d = d.dropna(subset=[value_col])
 
-    # If still empty, return an empty map with a helpful title
     if d.empty:
         return px.choropleth(title="No data available for this indicator")
 
@@ -78,5 +74,6 @@ def choropleth_latest(
         locationmode="ISO-3",
         color=value_col,
         color_continuous_scale="Viridis",
+        hover_name="country" if "country" in d.columns else None,
         title=title or f"{value_col} (latest)"
     )
