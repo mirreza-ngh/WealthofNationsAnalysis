@@ -41,7 +41,6 @@ min_cols = st.sidebar.slider(
 
 reload_btn = st.sidebar.button("Load / Refresh data")
 
-# ---------------- Data loading ----------------
 @st.cache_data(show_spinner=False)
 def load_panel(ind_dict, date):
     return fetch_many(ind_dict, date=date)
@@ -70,7 +69,6 @@ st.dataframe(panel.head(20), use_container_width=True)
 # ---------------- Latest complete ----------------
 latest = latest_complete(panel, min_cols=min_cols)
 
-# force numeric anyway (safe)
 for c in latest.columns:
     if c not in ("iso3c", "year", "country"):
         latest[c] = pd.to_numeric(latest[c], errors="coerce")
@@ -95,7 +93,6 @@ with tab1:
     default_country = "USA" if "USA" in countries else countries[0]
 
     iso3c = st.selectbox("Country (ISO3)", countries, index=countries.index(default_country))
-
     numeric_cols_panel = [c for c in panel.columns if c not in ("iso3c", "year", "country")]
     y_col = st.selectbox("Indicator", numeric_cols_panel)
 
@@ -131,7 +128,6 @@ with tab3:
     numeric_cols_panel = [c for c in panel.columns if c not in ("iso3c", "year", "country")]
     map_col = st.selectbox("Indicator to map", numeric_cols_panel)
 
-    # latest non-null per country for THIS indicator
     d = panel[["iso3c", "country", "year", map_col]].dropna(subset=[map_col])
     idx = d.groupby("iso3c")["year"].idxmax()
     map_df = d.loc[idx].reset_index(drop=True)
