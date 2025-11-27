@@ -25,7 +25,9 @@ def fetch_indicator(indicator: str, date: str = "1960:2023") -> pd.DataFrame:
         if page >= meta["pages"]:
             break
         page += 1
-    return pd.DataFrame(rows)
+     df = pd.DataFrame(rows)
+    df["value"] = pd.to_numeric(df["value"], errors="coerce")
+    return df
 
 def fetch_many(indicators: dict, date: str = "1960:2023") -> pd.DataFrame:
     """Merge multiple indicators wide by (iso3c, year)."""
