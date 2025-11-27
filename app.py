@@ -31,7 +31,6 @@ selected_inds = st.sidebar.multiselect(
     options=indicator_keys,
     default=indicator_keys,
 )
-add streamlit app
 
 min_cols = st.sidebar.slider(
     "Min non-null indicators (latest complete)",
