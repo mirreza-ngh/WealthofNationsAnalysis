@@ -4,10 +4,7 @@ import pandas as pd
 
 
 def timeseries(df: pd.DataFrame, iso3c: str, y: str, title: str = ""):
-    """
-    Matplotlib time series for one country and one indicator.
-    Draws on the current figure (Streamlit should use st.pyplot(plt.gcf())).
-    """
+    """Matplotlib time series for one country and one indicator."""
     sub = df[df["iso3c"] == iso3c].sort_values("year")
     plt.figure()
     plt.plot(sub["year"], sub[y])
@@ -24,10 +21,12 @@ def scatter_rel(
     hover: str = "country",
     title: str = ""
 ):
-    """
-    Plotly scatter with OLS trendline (requires statsmodels installed).
-    """
+    """Plotly scatter with OLS trendline (statsmodels required)."""
     d = df.copy()
+
+    # ✅ IMPORTANT: remove duplicate columns (fixes narwhals DuplicateError)
+    d = d.loc[:, ~d.columns.duplicated()]
+
     d[x] = pd.to_numeric(d[x], errors="coerce")
     d[y] = pd.to_numeric(d[y], errors="coerce")
     d = d.dropna(subset=[x, y])
@@ -42,24 +41,11 @@ def scatter_rel(
     )
 
 
-def choropleth_latest(
-    df_latest: pd.DataFrame,
-    value_col: str,
-    title: str = ""
-):
-    """
-    Plotly choropleth for latest values.
-    Cleans iso3 codes + drops missing values so the map is never fully blank
-    unless there is truly no data for that indicator.
-    """
+def choropleth_latest(df_latest: pd.DataFrame, value_col: str, title: str = ""):
+    """Plotly choropleth with ISO3 cleaning + NaN dropping."""
     d = df_latest.copy()
 
-    d["iso3c"] = (
-        d["iso3c"]
-        .astype(str)
-        .str.strip()
-        .str.upper()
-    )
+    d["iso3c"] = d["iso3c"].astype(str).str.strip().str.upper()
     d = d[d["iso3c"].str.len() == 3]
 
     d[value_col] = pd.to_numeric(d[value_col], errors="coerce")
