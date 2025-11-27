@@ -70,8 +70,13 @@ st.dataframe(panel.head(20), use_container_width=True)
 # ---------------- Latest complete ----------------
 latest = latest_complete(panel, min_cols=min_cols)
 
+# force numeric anyway (safe)
+for c in latest.columns:
+    if c not in ("iso3c", "year", "country"):
+        latest[c] = pd.to_numeric(latest[c], errors="coerce")
+
 st.subheader("Latest complete values (by country)")
-st.dataframe(latest.head(20), use_container_width=True)
+st.dataframe(latest.head(50), use_container_width=True)
 
 # ---------------- Correlation ----------------
 st.subheader("Correlation matrix (latest complete)")
@@ -91,10 +96,9 @@ with tab1:
 
     iso3c = st.selectbox("Country (ISO3)", countries, index=countries.index(default_country))
 
-    numeric_cols_panel = [c for c in panel.columns if c not in ("iso3c", "year")]
+    numeric_cols_panel = [c for c in panel.columns if c not in ("iso3c", "year", "country")]
     y_col = st.selectbox("Indicator", numeric_cols_panel)
 
-    # Your timeseries() draws matplotlib and returns None
     timeseries(panel, iso3c=iso3c, y=y_col, title=f"{y_col} — {iso3c}")
     st.pyplot(plt.gcf(), use_container_width=True)
 
@@ -102,7 +106,7 @@ with tab2:
     st.subheader("Relationship scatter (latest)")
     numeric_cols_latest = [
         c for c in latest.columns
-        if c not in ("iso3c", "year")
+        if c not in ("iso3c", "year", "country")
         and pd.api.types.is_numeric_dtype(latest[c])
     ]
 
@@ -116,28 +120,28 @@ with tab2:
             latest,
             x=x_col,
             y=y_col,
+            hover="country",
             title=f"{y_col} vs {x_col} (latest complete)"
         )
         st.plotly_chart(fig_sc, use_container_width=True)
 
 with tab3:
-    st.subheader("Choropleth (latest)")
-    numeric_cols_latest = [
-        c for c in latest.columns
-        if c not in ("iso3c", "year")
-        and pd.api.types.is_numeric_dtype(latest[c])
-    ]
+    st.subheader("Choropleth (latest available per country)")
 
-    if not numeric_cols_latest:
-        st.info("No numeric columns available for a map.")
-    else:
-        map_col = st.selectbox("Indicator to map", numeric_cols_latest)
-        fig_map = choropleth_latest(
-            latest,
-            value_col=map_col,
-            title=f"{map_col} (latest complete)"
-        )
-        st.plotly_chart(fig_map, use_container_width=True)
+    numeric_cols_panel = [c for c in panel.columns if c not in ("iso3c", "year", "country")]
+    map_col = st.selectbox("Indicator to map", numeric_cols_panel)
+
+    # latest non-null per country for THIS indicator
+    d = panel[["iso3c", "country", "year", map_col]].dropna(subset=[map_col])
+    idx = d.groupby("iso3c")["year"].idxmax()
+    map_df = d.loc[idx].reset_index(drop=True)
+
+    fig_map = choropleth_latest(
+        map_df,
+        value_col=map_col,
+        title=f"{map_col} (latest available)"
+    )
+    st.plotly_chart(fig_map, use_container_width=True)
 
 st.markdown("---")
 st.caption("Data: World Bank Open Data API. App: Streamlit.")
