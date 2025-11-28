@@ -62,11 +62,7 @@ tab1, tab2, tab3 = st.tabs(["Time series", "Scatter", "Map"])
 with tab1:
     st.subheader("Country time series")
     countries = sorted(panel["iso3c"].dropna().unique().tolist())
-    iso3c = st.selectbox(
-        "Country (ISO3)",
-        countries,
-        index=countries.index("USA") if "USA" in countries else 0
-    )
+    iso3c = st.selectbox("Country (ISO3)", countries, index=countries.index("USA") if "USA" in countries else 0)
 
     ind_cols_panel = [c for c in panel.columns if c not in ("iso3c", "year", "country")]
     y_col = st.selectbox("Indicator", ind_cols_panel)
@@ -77,17 +73,10 @@ with tab1:
 with tab2:
     st.subheader("Scatter (latest)")
     ind_cols_latest = [c for c in latest.columns if c not in ("iso3c", "year", "country")]
-
     if len(ind_cols_latest) >= 2:
         x_col = st.selectbox("X", ind_cols_latest, index=0)
         y_col = st.selectbox("Y", ind_cols_latest, index=1)
-        fig_sc = scatter_rel(
-            latest,
-            x=x_col,
-            y=y_col,
-            hover="country",
-            title=f"{y_col} vs {x_col}"
-        )
+        fig_sc = scatter_rel(latest, x=x_col, y=y_col, hover="country", title=f"{y_col} vs {x_col}")
         st.plotly_chart(fig_sc, use_container_width=True)
     else:
         st.info("Need at least two indicators selected.")
@@ -101,11 +90,5 @@ with tab3:
     idx = d.groupby("iso3c")["year"].idxmax()
     map_df = d.loc[idx].reset_index(drop=True)
 
-    fig_map = choropleth_latest(
-        map_df,
-        value_col=map_col,
-        title=f"{map_col} (latest available)"
-    )
+    fig_map = choropleth_latest(map_df, value_col=map_col, title=f"{map_col} (latest available)")
     st.plotly_chart(fig_map, use_container_width=True)
-
-st.caption("Data: World Bank Open Data API. App: Streamlit.")
