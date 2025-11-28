@@ -7,205 +7,88 @@ from won.data import fetch_many
 from won.transform import latest_complete, correlation_matrix
 from won.viz import timeseries, scatter_rel, choropleth_latest
 
-
-st.set_page_config(
-    page_title="Wealth of Nations Dashboard",
-    page_icon="🌍",
-    layout="wide",
-)
+st.set_page_config(page_title="Wealth of Nations", page_icon="🌍", layout="wide")
 
 st.title("🌍 Wealth of Nations — Interactive Dashboard")
-st.caption("Explore World Bank indicators: trends, relationships, and global patterns.")
 
+# ---- Sidebar ----
+st.sidebar.header("Settings")
 
-# ---------------- Sidebar ----------------
-st.sidebar.header("Data settings")
-
-date_range = st.sidebar.text_input(
-    "Year range",
-    value="1960:2023",
-    help="Format: start:end (example 1990:2023)",
-)
-
-indicator_keys = list(DEFAULT_INDICATORS.keys())
+date_range = st.sidebar.text_input("Year range", value="1960:2023")
 selected_inds = st.sidebar.multiselect(
     "Indicators",
-    options=indicator_keys,
-    default=indicator_keys,
+    options=list(DEFAULT_INDICATORS.keys()),
+    default=list(DEFAULT_INDICATORS.keys())
 )
-
-min_cols = st.sidebar.slider(
-    "Min non-null indicators (latest complete)",
-    min_value=1,
-    max_value=max(2, len(selected_inds)) if selected_inds else 2,
-    value=2,
-)
-
+min_cols = st.sidebar.slider("Min non-null indicators for latest table", 1, 4, 2)
 reload_btn = st.sidebar.button("Load / Refresh data")
 
-
-# ---------------- Data loading ----------------
-@st.cache_data(show_spinner=False)
-def load_panel(ind_dict, date):
-    return fetch_many(ind_dict, date=date)
-
-
+# ---- Load data ----
 if reload_btn or "panel" not in st.session_state:
     if not selected_inds:
-        st.warning("Pick at least one indicator in the sidebar.")
-        st.stop()
+        st.warning("Select at least one indicator.")
+    else:
+        ind_dict = {k: DEFAULT_INDICATORS[k] for k in selected_inds}
+        st.session_state["panel"] = fetch_many(ind_dict, date=date_range)
 
-    selected_dict = {k: DEFAULT_INDICATORS[k] for k in selected_inds}
+panel = st.session_state.get("panel", pd.DataFrame())
 
-    with st.spinner("Fetching data from World Bank API…"):
-        st.session_state["panel"] = load_panel(selected_dict, date_range)
-
-panel = st.session_state["panel"]
-
-# remove duplicate columns if cache/merge created any
-panel = panel.loc[:, ~panel.columns.duplicated()]
-
-
-# ---------------- Preview ----------------
 st.subheader("Dataset preview")
-st.write(
-    f"Rows: **{len(panel):,}** | "
-    f"Countries: **{panel['iso3c'].nunique():,}** | "
-    f"Years: **{panel['year'].nunique():,}**"
-)
+st.write(f"Shape: {panel.shape}")
 st.dataframe(panel.head(20), use_container_width=True)
 
+if panel.empty:
+    st.warning("No data loaded yet. Click 'Load / Refresh data' in the sidebar.")
+    st.stop()
 
-# ---------------- Latest complete ----------------
+# ---- Latest complete ----
 latest = latest_complete(panel, min_cols=min_cols)
 
-# force numeric for indicators
 for c in latest.columns:
     if c not in ("iso3c", "year", "country"):
         latest[c] = pd.to_numeric(latest[c], errors="coerce")
 
-latest = latest.loc[:, ~latest.columns.duplicated()]
-
 st.subheader("Latest complete values (by country)")
-st.dataframe(latest.head(50), use_container_width=True)
+st.dataframe(latest.head(30), use_container_width=True)
 
-
-# ---------------- Correlation ----------------
-st.subheader("Correlation matrix (latest complete)")
+st.subheader("Correlation matrix (latest)")
 corr = correlation_matrix(latest)
 st.dataframe(corr, use_container_width=True)
 
-
-# ---------------- Visualizations ----------------
-st.markdown("---")
+# ---- Visuals ----
 st.header("Visualizations")
-
 tab1, tab2, tab3 = st.tabs(["Time series", "Scatter", "Map"])
 
-
-# ---- Time series tab (matplotlib) ----
 with tab1:
     st.subheader("Country time series")
-
     countries = sorted(panel["iso3c"].dropna().unique().tolist())
+    iso3c = st.selectbox("Country (ISO3)", countries, index=countries.index("USA") if "USA" in countries else 0)
 
-    if not countries:
-        st.error(
-            "No countries found in the dataset. "
-            "Click 'Load / Refresh data' in the sidebar. "
-            "If it still happens, try a smaller year range (e.g., 2000:2023)."
-        )
-        st.stop()
-
-    default_country = "USA" if "USA" in countries else countries[0]
-
-    iso3c = st.selectbox(
-        "Country (ISO3)",
-        countries,
-        index=countries.index(default_country)
-    )
-
-    numeric_cols_panel = [
-        c for c in panel.columns
-        if c not in ("iso3c", "year", "country")
-    ]
-
-    if not numeric_cols_panel:
-        st.warning("No indicator columns available to plot.")
-        st.stop()
-
-    y_col = st.selectbox("Indicator", numeric_cols_panel)
+    ind_cols_panel = [c for c in panel.columns if c not in ("iso3c", "year", "country")]
+    y_col = st.selectbox("Indicator", ind_cols_panel)
 
     timeseries(panel, iso3c=iso3c, y=y_col, title=f"{y_col} — {iso3c}")
     st.pyplot(plt.gcf(), use_container_width=True)
 
-
-# ---- Scatter tab (plotly + OLS trendline) ----
 with tab2:
-    st.subheader("Relationship scatter (latest)")
+    st.subheader("Scatter (latest)")
+    ind_cols_latest = [c for c in latest.columns if c not in ("iso3c", "year", "country")]
+    if len(ind_cols_latest) >= 2:
+        x_col = st.selectbox("X", ind_cols_latest, index=0)
+        y_col = st.selectbox("Y", ind_cols_latest, index=1)
+        fig_sc = scatter_rel(latest, x=x_col, y=y_col, hover="country", title=f"{y_col} vs {x_col}")
+        st.plotly_chart(fig_sc, use_container_width=True)
+    else:
+        st.info("Need at least two indicators selected.")
 
-    numeric_cols_latest = [
-        c for c in latest.columns
-        if c not in ("iso3c", "year", "country")
-        and pd.api.types.is_numeric_dtype(latest[c])
-    ]
-
-    if len(numeric_cols_latest) < 2:
-        st.info("Need at least two numeric indicators to make a scatter plot.")
-        st.stop()
-
-    x_col = st.selectbox("X axis", numeric_cols_latest, index=0)
-    y_col = st.selectbox("Y axis", numeric_cols_latest, index=1)
-
-    fig_sc = scatter_rel(
-        latest,
-        x=x_col,
-        y=y_col,
-        hover="country",
-        title=f"{y_col} vs {x_col} (latest complete)"
-    )
-    st.plotly_chart(fig_sc, use_container_width=True)
-
-
-# ---- Map tab (ultra-safe, latest-per-indicator) ----
 with tab3:
-    st.subheader("Choropleth (latest available per country)")
+    st.subheader("Map (latest available per country)")
+    ind_cols_panel = [c for c in panel.columns if c not in ("iso3c", "year", "country")]
+    map_col = st.selectbox("Indicator to map", ind_cols_panel)
 
-    indicator_cols_now = [
-        c for c in panel.columns
-        if c not in ("iso3c", "country", "year")
-    ]
-
-    if not indicator_cols_now:
-        st.info("No indicator columns found. Select indicators and refresh.")
-        st.stop()
-
-    map_col = st.selectbox("Indicator to map", indicator_cols_now)
-
-    d = panel[["iso3c", "country", "year", map_col]].copy()
-    d[map_col] = pd.to_numeric(d[map_col], errors="coerce")
-    d = d.dropna(subset=[map_col])
-
-    if d.empty:
-        st.warning("No non-null data for this indicator yet. Try another indicator.")
-        fig_empty = choropleth_latest(
-            pd.DataFrame({"iso3c": [], map_col: []}),
-            value_col=map_col,
-            title=f"{map_col} (no data)"
-        )
-        st.plotly_chart(fig_empty, use_container_width=True)
-        st.stop()
-
+    d = panel[["iso3c", "country", "year", map_col]].dropna(subset=[map_col])
     idx = d.groupby("iso3c")["year"].idxmax()
     map_df = d.loc[idx].reset_index(drop=True)
 
-    fig_map = choropleth_latest(
-        map_df,
-        value_col=map_col,
-        title=f"{map_col} (latest available)"
-    )
+    fig_map = choropleth_latest(map_df, value_col=map_col, title=f"{map_col} (latest available)")
     st.plotly_chart(fig_map, use_container_width=True)
-
-
-st.markdown("---")
-st.caption("Data: World Bank Open Data API. App: Streamlit.")
