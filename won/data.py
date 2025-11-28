@@ -50,7 +50,7 @@ def fetch_indicator(indicator: str, date: str = "1960:2023") -> pd.DataFrame:
     # Convert values to numeric (safe)
     df["value"] = pd.to_numeric(df["value"], errors="coerce")
 
-    # KEEP ONLY REAL COUNTRIES (drop aggregates like 1A, EUU, SAS, etc.)
+    # ✅ KEEP ONLY REAL COUNTRIES (drop aggregates like 1A, EUU, SAS, etc.)
     df = df[df["iso3c"].astype(str).str.len() == 3]
 
     return df
