@@ -3,7 +3,7 @@ import pandas as pd
 
 
 def fetch_indicator(indicator: str, date: str = "1960:2023") -> pd.DataFrame:
-    """Fetch one World Bank indicator as a tidy DataFrame: iso3c, country, year, value."""
+    """Fetch one World Bank indicator as tidy DataFrame: iso3c, country, year, value."""
     url = (
         f"https://api.worldbank.org/v2/country/all/indicator/{indicator}"
         f"?date={date}&format=json&per_page=20000"
@@ -22,53 +22,56 @@ def fetch_indicator(indicator: str, date: str = "1960:2023") -> pd.DataFrame:
         meta, items = payload[0], payload[1]
 
         for it in items:
-            # Skip world aggregate
-            if it["country"]["id"] == "WLD":
+            cid = it["country"]["id"]
+            if cid == "WLD":
                 continue
 
             rows.append({
-                "iso3c": it["country"]["id"],
-                "country": it["country"]["value"],  # FULL NAME from WB
+                "iso3c": cid.strip().upper(),
+                "country": it["country"]["value"],
                 "year": int(it["date"]),
                 "value": it["value"],
             })
 
-        if page >= meta["pages"]:
+        if page >= meta.get("pages", 1):
             break
         page += 1
 
     df = pd.DataFrame(rows)
+    if df.empty:
+        return df
+
+    # numeric values
     df["value"] = pd.to_numeric(df["value"], errors="coerce")
 
-    # keep only 3-letter ISO codes (real countries)
-    df["iso3c"] = df["iso3c"].astype(str).str.strip().str.upper()
+    # keep only real ISO-3 countries
     df = df[df["iso3c"].str.len() == 3]
 
     return df
 
 
 def fetch_many(indicators: dict, date: str = "1960:2023") -> pd.DataFrame:
-    """Merge multiple indicators wide by (iso3c, country, year)."""
-    frames = []
+    """
+    Fetch multiple indicators and merge wide on (iso3c, year).
+    Country name is kept from the first indicator only (avoids duplicates).
+    Robust if any indicator returns empty.
+    """
+    out = None
+
     for col, code in indicators.items():
-        dfi = fetch_indicator(code, date).rename(columns={"value": col})
-        frames.append(dfi)
+        dfi = fetch_indicator(code, date)
+        if dfi.empty:
+            continue
 
-    out = frames[0]
-    for dfi in frames[1:]:
-        out = out.merge(
-            dfi,
-            on=["iso3c", "year"],
-            how="outer",
-            suffixes=("_x", "_y")
-        )
+        dfi = dfi.rename(columns={"value": col})
 
-        # merge country names cleanly if duplicates appear
-        if "country_x" in out.columns and "country_y" in out.columns:
-            out["country"] = out["country_x"].fillna(out["country_y"])
-            out = out.drop(columns=["country_x", "country_y"])
+        # after first indicator, drop country col before merging (prevents duplicates)
+        if out is not None and "country" in dfi.columns:
+            dfi = dfi.drop(columns=["country"])
 
-    cols = ["iso3c", "country", "year"] + [c for c in out.columns if c not in ("iso3c", "country", "year")]
-    out = out[cols]
+        out = dfi if out is None else out.merge(dfi, on=["iso3c", "year"], how="outer")
+
+    if out is None:
+        return pd.DataFrame(columns=["iso3c", "country", "year"] + list(indicators.keys()))
 
     return out.sort_values(["iso3c", "year"]).reset_index(drop=True)
