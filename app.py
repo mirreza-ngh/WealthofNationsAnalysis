@@ -9,12 +9,12 @@ from won.viz import timeseries, scatter_rel, choropleth_latest
 
 
 st.set_page_config(
-    page_title="Wealth of Nations",
+    page_title="Wealth of Nations Dashboard",
     page_icon="🌍",
     layout="wide",
 )
 
-st.title("🌍Wealth of Nations")
+st.title("🌍 Wealth of Nations — Interactive Dashboard")
 st.caption("Explore World Bank indicators: trends, relationships, and global patterns.")
 
 
@@ -87,4 +87,114 @@ for c in latest.columns:
 latest = latest.loc[:, ~latest.columns.duplicated()]
 
 st.subheader("Latest complete values (by country)")
-st.dataframe(late
+st.dataframe(latest.head(50), use_container_width=True)
+
+
+# ---------------- Correlation ----------------
+st.subheader("Correlation matrix (latest complete)")
+corr = correlation_matrix(latest)
+st.dataframe(corr, use_container_width=True)
+
+
+# ---------------- Visuals ----------------
+st.markdown("---")
+st.header("Visualizations")
+
+tab1, tab2, tab3 = st.tabs(["Time series", "Scatter", "Map"])
+
+
+# ---- Time series tab (matplotlib) ----
+with tab1:
+    st.subheader("Country time series")
+
+    countries = sorted(panel["iso3c"].dropna().unique().tolist())
+    default_country = "USA" if "USA" in countries else countries[0]
+
+    iso3c = st.selectbox(
+        "Country (ISO3)",
+        countries,
+        index=countries.index(default_country)
+    )
+
+    numeric_cols_panel = [
+        c for c in panel.columns
+        if c not in ("iso3c", "year", "country")
+    ]
+    y_col = st.selectbox("Indicator", numeric_cols_panel)
+
+    timeseries(panel, iso3c=iso3c, y=y_col, title=f"{y_col} — {iso3c}")
+    st.pyplot(plt.gcf(), use_container_width=True)
+
+
+# ---- Scatter tab (plotly + OLS trendline) ----
+with tab2:
+    st.subheader("Relationship scatter (latest)")
+
+    numeric_cols_latest = [
+        c for c in latest.columns
+        if c not in ("iso3c", "year", "country")
+        and pd.api.types.is_numeric_dtype(latest[c])
+    ]
+
+    if len(numeric_cols_latest) < 2:
+        st.info("Need at least two numeric indicators to make a scatter plot.")
+    else:
+        x_col = st.selectbox("X axis", numeric_cols_latest, index=0)
+        y_col = st.selectbox("Y axis", numeric_cols_latest, index=1)
+
+        fig_sc = scatter_rel(
+            latest,
+            x=x_col,
+            y=y_col,
+            hover="country",
+            title=f"{y_col} vs {x_col} (latest complete)"
+        )
+        st.plotly_chart(fig_sc, use_container_width=True)
+
+
+# ---- Map tab (ULTRA-SAFE, cannot crash) ----
+with tab3:
+    st.subheader("Choropleth (latest available per country)")
+
+    # 1) Only use real indicator columns that exist right now
+    indicator_cols_now = [
+        c for c in panel.columns
+        if c not in ("iso3c", "country", "year")
+    ]
+
+    if not indicator_cols_now:
+        st.info("No indicator columns found. Select indicators and click 'Load / Refresh data'.")
+        st.stop()
+
+    # 2) Dropdown only shows real columns
+    map_col = st.selectbox("Indicator to map", indicator_cols_now)
+
+    # 3) Build latest-available-per-country for THIS indicator
+    d = panel[["iso3c", "country", "year", map_col]].copy()
+    d[map_col] = pd.to_numeric(d[map_col], errors="coerce")
+    d = d.dropna(subset=[map_col])
+
+    # 4) If empty, show warning but DON'T crash
+    if d.empty:
+        st.warning("No non-null data for this indicator yet. Try another indicator.")
+        fig_empty = choropleth_latest(
+            pd.DataFrame({"iso3c": [], map_col: []}),
+            value_col=map_col,
+            title=f"{map_col} (no data)"
+        )
+        st.plotly_chart(fig_empty, use_container_width=True)
+        st.stop()
+
+    idx = d.groupby("iso3c")["year"].idxmax()
+    map_df = d.loc[idx].reset_index(drop=True)
+
+    fig_map = choropleth_latest(
+        map_df,
+        value_col=map_col,
+        title=f"{map_col} (latest available)"
+    )
+    st.plotly_chart(fig_map, use_container_width=True)
+
+
+st.markdown("---")
+st.caption("Data: World Bank Open Data API. App: Streamlit.")
