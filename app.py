@@ -62,7 +62,7 @@ if reload_btn or "panel" not in st.session_state:
 
 panel = st.session_state["panel"]
 
-# remove any duplicate columns just in case cache/merge created some
+# remove duplicate columns if cache/merge created any
 panel = panel.loc[:, ~panel.columns.duplicated()]
 
 
@@ -79,7 +79,7 @@ st.dataframe(panel.head(20), use_container_width=True)
 # ---------------- Latest complete ----------------
 latest = latest_complete(panel, min_cols=min_cols)
 
-# force numeric just in case cached values were strings
+# force numeric for indicators
 for c in latest.columns:
     if c not in ("iso3c", "year", "country"):
         latest[c] = pd.to_numeric(latest[c], errors="coerce")
@@ -96,7 +96,7 @@ corr = correlation_matrix(latest)
 st.dataframe(corr, use_container_width=True)
 
 
-# ---------------- Visuals ----------------
+# ---------------- Visualizations ----------------
 st.markdown("---")
 st.header("Visualizations")
 
@@ -108,6 +108,15 @@ with tab1:
     st.subheader("Country time series")
 
     countries = sorted(panel["iso3c"].dropna().unique().tolist())
+
+    if not countries:
+        st.error(
+            "No countries found in the dataset. "
+            "Click 'Load / Refresh data' in the sidebar. "
+            "If it still happens, try a smaller year range (e.g., 2000:2023)."
+        )
+        st.stop()
+
     default_country = "USA" if "USA" in countries else countries[0]
 
     iso3c = st.selectbox(
@@ -120,6 +129,11 @@ with tab1:
         c for c in panel.columns
         if c not in ("iso3c", "year", "country")
     ]
+
+    if not numeric_cols_panel:
+        st.warning("No indicator columns available to plot.")
+        st.stop()
+
     y_col = st.selectbox("Indicator", numeric_cols_panel)
 
     timeseries(panel, iso3c=iso3c, y=y_col, title=f"{y_col} — {iso3c}")
@@ -138,43 +152,40 @@ with tab2:
 
     if len(numeric_cols_latest) < 2:
         st.info("Need at least two numeric indicators to make a scatter plot.")
-    else:
-        x_col = st.selectbox("X axis", numeric_cols_latest, index=0)
-        y_col = st.selectbox("Y axis", numeric_cols_latest, index=1)
+        st.stop()
 
-        fig_sc = scatter_rel(
-            latest,
-            x=x_col,
-            y=y_col,
-            hover="country",
-            title=f"{y_col} vs {x_col} (latest complete)"
-        )
-        st.plotly_chart(fig_sc, use_container_width=True)
+    x_col = st.selectbox("X axis", numeric_cols_latest, index=0)
+    y_col = st.selectbox("Y axis", numeric_cols_latest, index=1)
+
+    fig_sc = scatter_rel(
+        latest,
+        x=x_col,
+        y=y_col,
+        hover="country",
+        title=f"{y_col} vs {x_col} (latest complete)"
+    )
+    st.plotly_chart(fig_sc, use_container_width=True)
 
 
-# ---- Map tab (ULTRA-SAFE, cannot crash) ----
+# ---- Map tab (ultra-safe, latest-per-indicator) ----
 with tab3:
     st.subheader("Choropleth (latest available per country)")
 
-    # 1) Only use real indicator columns that exist right now
     indicator_cols_now = [
         c for c in panel.columns
         if c not in ("iso3c", "country", "year")
     ]
 
     if not indicator_cols_now:
-        st.info("No indicator columns found. Select indicators and click 'Load / Refresh data'.")
+        st.info("No indicator columns found. Select indicators and refresh.")
         st.stop()
 
-    # 2) Dropdown only shows real columns
     map_col = st.selectbox("Indicator to map", indicator_cols_now)
 
-    # 3) Build latest-available-per-country for THIS indicator
     d = panel[["iso3c", "country", "year", map_col]].copy()
     d[map_col] = pd.to_numeric(d[map_col], errors="coerce")
     d = d.dropna(subset=[map_col])
 
-    # 4) If empty, show warning but DON'T crash
     if d.empty:
         st.warning("No non-null data for this indicator yet. Try another indicator.")
         fig_empty = choropleth_latest(
