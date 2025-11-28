@@ -29,7 +29,7 @@ if reload_btn or "panel" not in st.session_state:
         st.warning("Select at least one indicator.")
     else:
         ind_dict = {k: DEFAULT_INDICATORS[k] for k in selected_inds}
-        st.session_state["panel"] = fetch_many(ind_dict, date=date_range.strip())
+        st.session_state["panel"] = fetch_many(ind_dict, date=date_range)
 
 panel = st.session_state.get("panel", pd.DataFrame())
 
@@ -94,12 +94,8 @@ with tab2:
 
 with tab3:
     st.subheader("Map (latest available per country)")
-
     ind_cols_panel = [c for c in panel.columns if c not in ("iso3c", "year", "country")]
     map_col = st.selectbox("Indicator to map", ind_cols_panel)
-
-    # IMPORTANT: force numeric BEFORE dropna
-    panel[map_col] = pd.to_numeric(panel[map_col], errors="coerce")
 
     d = panel[["iso3c", "country", "year", map_col]].dropna(subset=[map_col])
     idx = d.groupby("iso3c")["year"].idxmax()
