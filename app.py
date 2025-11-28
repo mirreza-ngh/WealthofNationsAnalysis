@@ -23,23 +23,42 @@ selected_inds = st.sidebar.multiselect(
 min_cols = st.sidebar.slider("Min non-null indicators for latest table", 1, 4, 2)
 reload_btn = st.sidebar.button("Load / Refresh data")
 
+
+def do_fetch():
+    ind_dict = {k: DEFAULT_INDICATORS[k] for k in selected_inds}
+    return fetch_many(ind_dict, date=date_range.strip())
+
+
 # ---- Load data ----
+# Fetch if:
+#  1) button clicked
+#  2) panel not present
 if reload_btn or "panel" not in st.session_state:
     if not selected_inds:
         st.warning("Select at least one indicator.")
-    else:
-        ind_dict = {k: DEFAULT_INDICATORS[k] for k in selected_inds}
-        st.session_state["panel"] = fetch_many(ind_dict, date=date_range)
+        st.stop()
+    st.session_state["panel"] = do_fetch()
 
 panel = st.session_state.get("panel", pd.DataFrame())
 
+# ✅ NEW: if panel is empty, auto-refetch ONCE
+if panel.empty:
+    if not selected_inds:
+        st.warning("Select at least one indicator.")
+        st.stop()
+    panel = do_fetch()
+    st.session_state["panel"] = panel
+
+
+# ---- Preview ----
 st.subheader("Dataset preview")
 st.write(f"Shape: {panel.shape}")
 st.dataframe(panel.head(20), use_container_width=True)
 
 if panel.empty:
-    st.warning("No data loaded yet. Click 'Load / Refresh data' in the sidebar.")
+    st.warning("Still no data. Click 'Load / Refresh data' again.")
     st.stop()
+
 
 # ---- Latest complete ----
 latest = latest_complete(panel, min_cols=min_cols)
@@ -55,14 +74,19 @@ st.subheader("Correlation matrix (latest)")
 corr = correlation_matrix(latest)
 st.dataframe(corr, use_container_width=True)
 
-# ---- Visuals ----
+
+# ---- Visualizations ----
 st.header("Visualizations")
 tab1, tab2, tab3 = st.tabs(["Time series", "Scatter", "Map"])
 
 with tab1:
     st.subheader("Country time series")
     countries = sorted(panel["iso3c"].dropna().unique().tolist())
-    iso3c = st.selectbox("Country (ISO3)", countries, index=countries.index("USA") if "USA" in countries else 0)
+    iso3c = st.selectbox(
+        "Country (ISO3)",
+        countries,
+        index=countries.index("USA") if "USA" in countries else 0
+    )
 
     ind_cols_panel = [c for c in panel.columns if c not in ("iso3c", "year", "country")]
     y_col = st.selectbox("Indicator", ind_cols_panel)
@@ -73,10 +97,17 @@ with tab1:
 with tab2:
     st.subheader("Scatter (latest)")
     ind_cols_latest = [c for c in latest.columns if c not in ("iso3c", "year", "country")]
+
     if len(ind_cols_latest) >= 2:
         x_col = st.selectbox("X", ind_cols_latest, index=0)
         y_col = st.selectbox("Y", ind_cols_latest, index=1)
-        fig_sc = scatter_rel(latest, x=x_col, y=y_col, hover="country", title=f"{y_col} vs {x_col}")
+        fig_sc = scatter_rel(
+            latest,
+            x=x_col,
+            y=y_col,
+            hover="country",
+            title=f"{y_col} vs {x_col}"
+        )
         st.plotly_chart(fig_sc, use_container_width=True)
     else:
         st.info("Need at least two indicators selected.")
@@ -90,5 +121,11 @@ with tab3:
     idx = d.groupby("iso3c")["year"].idxmax()
     map_df = d.loc[idx].reset_index(drop=True)
 
-    fig_map = choropleth_latest(map_df, value_col=map_col, title=f"{map_col} (latest available)")
+    fig_map = choropleth_latest(
+        map_df,
+        value_col=map_col,
+        title=f"{map_col} (latest available)"
+    )
     st.plotly_chart(fig_map, use_container_width=True)
+
+st.caption("Data: World Bank Open Data API. App: Streamlit.")
