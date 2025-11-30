@@ -2,7 +2,23 @@ import pandas as pd
 
 
 def latest_complete(df: pd.DataFrame, min_cols: int = 2) -> pd.DataFrame:
-    """Latest row per country with at least `min_cols` non-null indicators."""
+    """
+    Select the latest year per country with at least `min_cols` non-null indicators.
+
+    Useful to avoid artificially missing values in correlation or mapping.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Panel data with ['iso3c', 'year', indicator columns].
+    min_cols : int, default=2
+        Minimum number of non-null indicator values required.
+
+    Returns
+    -------
+    pd.DataFrame
+        One row per country (latest valid year).
+    """
     base_cols = {"iso3c", "year"}
     if "country" in df.columns:
         base_cols.add("country")
@@ -27,7 +43,19 @@ def latest_complete(df: pd.DataFrame, min_cols: int = 2) -> pd.DataFrame:
 
 
 def correlation_matrix(df: pd.DataFrame) -> pd.DataFrame:
-    """Pearson correlation among indicator columns."""
+    """
+    Compute Pearson correlation coefficients between available indicators.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Latest or filtered dataset where rows are countries.
+
+    Returns
+    -------
+    pd.DataFrame
+        Square correlation matrix of numeric indicator columns.
+    """
     base_cols = {"iso3c", "year"}
     if "country" in df.columns:
         base_cols.add("country")

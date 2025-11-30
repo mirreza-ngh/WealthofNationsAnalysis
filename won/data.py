@@ -3,7 +3,22 @@ import pandas as pd
 
 
 def fetch_indicator(indicator: str, date: str = "1960:2023") -> pd.DataFrame:
-    """Fetch one World Bank indicator as tidy DataFrame: iso3c, country, year, value."""
+    """
+    Fetch a single indicator from the World Bank API.
+
+    Parameters
+    ----------
+    indicator : str
+        World Bank indicator code (e.g., "NY.GDP.PCAP.CD").
+    date : str, default="1960:2023"
+        Year range to request in "start:end" format.
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns: ['iso3c', 'country', 'year', 'value']
+        One row per country-year observation.
+    """
     url = (
         f"https://api.worldbank.org/v2/country/all/indicator/{indicator}"
         f"?date={date}&format=json&per_page=20000"
@@ -25,7 +40,7 @@ def fetch_indicator(indicator: str, date: str = "1960:2023") -> pd.DataFrame:
             break
 
         for it in items:
-            iso3 = it.get("countryiso3code")  # ✅ REAL ISO3 CODE
+            iso3 = it.get("countryiso3code")
             if iso3 is None:
                 continue
             if iso3 == "WLD":
@@ -48,7 +63,6 @@ def fetch_indicator(indicator: str, date: str = "1960:2023") -> pd.DataFrame:
 
     df["value"] = pd.to_numeric(df["value"], errors="coerce")
 
-    # keep only real ISO-3 countries (drops regions/aggregates safely)
     df = df[df["iso3c"].astype(str).str.len() == 3]
 
     return df
@@ -56,8 +70,21 @@ def fetch_indicator(indicator: str, date: str = "1960:2023") -> pd.DataFrame:
 
 def fetch_many(indicators: dict, date: str = "1960:2023") -> pd.DataFrame:
     """
-    Merge multiple indicators wide by (iso3c, year).
-    Keep country name from FIRST indicator only to avoid duplicates.
+    Fetch and merge multiple indicators into a single panel dataset.
+
+    Parameters
+    ----------
+    indicators : dict
+        Map of output column name → indicator code.
+        Example: {"gdp_pc": "NY.GDP.PCAP.CD", "life_exp": "SP.DYN.LE00.IN"}
+    date : str, default="1960:2023"
+        Range of years.
+
+    Returns
+    -------
+    pd.DataFrame
+        Sorted panel data with columns:
+        ['iso3c', 'country', 'year', <indicator columns>]
     """
     frames = []
 

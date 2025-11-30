@@ -1,4 +1,3 @@
-# World Bank indicator codes and constants
 GDP_PC = "NY.GDP.PCAP.CD"        # GDP per capita (current dollars)
 LIFE_EXP = "SP.DYN.LE00.IN"      # Life expectancy at birth (years)
 HEALTH_SP = "SH.XPD.CHEX.PC.CD"  # Health expenditure per capita (dollars)

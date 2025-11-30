@@ -38,7 +38,6 @@ if reload_btn or "panel" not in st.session_state:
 
 panel = st.session_state.get("panel", pd.DataFrame())
 
-# If a previous run cached empty data, refetch once
 if panel.empty and selected_inds:
     panel = do_fetch()
     st.session_state["panel"] = panel
@@ -47,7 +46,7 @@ if panel.empty and selected_inds:
 # ---- Preview ----
 st.subheader("Dataset preview")
 st.write(f"Shape: {panel.shape}")
-st.dataframe(panel.head(20), use_container_width=True)
+st.dataframe(panel, use_container_width=True)
 
 if panel.empty:
     st.warning("No data loaded yet. Click 'Load / Refresh data' in the sidebar.")
@@ -62,7 +61,7 @@ for c in latest.columns:
         latest[c] = pd.to_numeric(latest[c], errors="coerce")
 
 st.subheader("Latest complete values (by country)")
-st.dataframe(latest.head(30), use_container_width=True)
+st.dataframe(latest, use_container_width=True)
 
 st.subheader("Correlation matrix (latest)")
 corr = correlation_matrix(latest)
@@ -113,7 +112,6 @@ with tab3:
     ind_cols_panel = [c for c in panel.columns if c not in ("iso3c", "year", "country")]
     map_col = st.selectbox("Indicator to map", ind_cols_panel)
 
-    # force numeric before mapping
     panel[map_col] = pd.to_numeric(panel[map_col], errors="coerce")
 
     d = panel[["iso3c", "country", "year", map_col]].dropna(subset=[map_col])
