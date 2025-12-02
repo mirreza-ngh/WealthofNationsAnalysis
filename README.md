@@ -54,7 +54,7 @@ This launches an interactive tool to explore:
 - Health expenditure
 - Child mortality
 - Relationship plots and choropleth maps
- ```
+
 https://wealthofnationsanalysis-jrkb9wkvqhqwnbfprsoifb.streamlit.app/
 
 ### Using the Notebook
