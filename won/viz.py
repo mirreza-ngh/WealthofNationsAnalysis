@@ -22,7 +22,7 @@ def timeseries(df: pd.DataFrame, iso3c: str, y: str, title: str = ""):
     plt.figure()
     plt.plot(sub["year"], sub[y])
     plt.xlabel("Year")
-    plt.ylabel(y)
+    plt.ylabel(sub[y], sub["Dollars"] )
     plt.title(title or f"{y} — {iso3c}")
     plt.tight_layout()
 
