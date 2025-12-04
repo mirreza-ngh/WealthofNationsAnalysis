@@ -125,4 +125,4 @@ with tab3:
     )
     st.plotly_chart(fig_map, use_container_width=True)
 
-st.caption("Data: World Bank Open Data API. App: Streamlit.")
+st.caption("Data: World Bank Open Data API. App: Streamlit. Interactive Preseantion by: Mir Reza Negahban Alvar")
